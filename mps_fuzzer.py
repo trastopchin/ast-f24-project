@@ -47,7 +47,7 @@ class MPS:
         self.model.setParam('OutputFlag', 0)
         self.model.optimize()
         if self.model.Status == gp.GRB.OPTIMAL:
-            self.obj_val = self.model.ObjVal
+            self.obj_val = float(self.model.ObjVal)
             self.solution = np.zeros(self.model.NumVars)
             for i in range(self.model.NumVars):
                 self.solution[i] = self.model.getVars()[i].X
@@ -138,6 +138,8 @@ class ScaleObjective(Mutation):
         objective_relation = mps_new.obj_val == self.scale * mps.obj_val
         if not objective_relation:
             print("Objective relation doesn't hold!")
+            print(f"Expected objective: {self.scale * mps.obj_val}")
+            print(f"Actual objective: {mps_new.obj_val}")
         # solution_relation = np.array_equal(mps_new.solution, mps.solution)
         # if not solution_relation:
         #     print("Solution relation doesn't hold!")
@@ -149,7 +151,7 @@ class TranslateObjective(Mutation):
     """Translate objective mutation"""
 
     def __init__(self, translation: int):
-        self.translation = translation
+        self.translation = np.random.randint(-translation, translation)
 
     def __repr__(self):
         return f"{self.translation} + objective"
@@ -172,6 +174,8 @@ class TranslateObjective(Mutation):
         objective_relation = mps_new.obj_val == self.translation + mps.obj_val
         if not objective_relation:
             print("Objective relation doesn't hold!")
+            print(f"Expected objective: {self.translation + mps.obj_val}")
+            print(f"Actual objective: {mps_new.obj_val}")
         # solution_relation = np.array_equal(mps_new.solution, mps.solution)
         # if not solution_relation:
         #     print("Solution relation doesn't hold!")
@@ -192,6 +196,7 @@ class TranslateVariables(Mutation):
         if not self.initialized:
             self.translation = np.random.randint(
                 -self.translation, self.translation, shape=(mps.model.NumVars,))
+            self.initialzed = True
 
         # Perform the mutation
         mps_new = mps.copy()
@@ -209,6 +214,8 @@ class TranslateVariables(Mutation):
         objective_relation = mps_new.obj_val == mps.obj_val
         if not objective_relation:
             print("Objective relation doesn't hold!")
+            print(f"Expected objective: {mps.obj_val}")
+            print(f"Actual objective: {mps_new.obj_val}")
         # solution_relation = np.array_equal(mps_new.solution, mps.solution)
         # if not solution_relation:
         #     print("Solution relation doesn't hold!")
@@ -235,8 +242,8 @@ if __name__ == '__main__':
         if len(current.mutations) >= depth:
             continue
 
-        mutations = [ScaleObjective(10000), TranslateObjective(
-            10000), TranslateObjective(10000)]
+        mutations = [ScaleObjective(10), TranslateObjective(
+            1000), TranslateObjective(1000)]
         mutation = random.choice(mutations)
         mutated = mutation.mutate(current)
         print(mutated)
