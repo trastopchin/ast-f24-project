@@ -83,12 +83,15 @@ class MPSFile:
         return self.filename
 
 
-def _linexpr_to_ndarray(linexpr: gp.LinExpr) -> tuple[float, np.ndarray]:
+def _linexpr_to_ndarray(model: gp.Model, linexpr: gp.LinExpr) -> tuple[float, np.ndarray]:
     """Convert a gp.LinExpr to a float constant and np.ndarray of coefficients."""
     constant = linexpr.getConstant()
-    n = linexpr.size()
-    coefficients = np.zeros(n)
-    for i in range(n):
+    coefficients = np.zeros(model.NumVars)
+    # TODO: linexpr.getCoeff(i) is sparse and only stores non-zero coefficients for variables.
+    # To use np.ndarrays for the transformations we need to get around this.
+    assert (linexpr.size() == model.NumVars)
+    print(model.NumVars)
+    for i in range(model.NumVars):
         coefficients[i] = linexpr.getCoeff(i)
     return constant, coefficients
 
@@ -161,7 +164,8 @@ class TranslateObjective(MPSMutation):
 
         # Translate the objective
         objective_linexpr = output_file.model.getObjective()
-        constant, coefficients = _linexpr_to_ndarray(objective_linexpr)
+        constant, coefficients = _linexpr_to_ndarray(
+            output_file.model, objective_linexpr)
         objective_linexpr_new = _ndarray_to_linexpr(
             output_file.model, constant + self.translation, coefficients)
         output_file.model.setObjective(objective_linexpr_new)
@@ -208,7 +212,8 @@ class ScaleObjective(MPSMutation):
 
         # Translate the objective
         objective_linexpr = output_file.model.getObjective()
-        constant, coefficients = _linexpr_to_ndarray(objective_linexpr)
+        constant, coefficients = _linexpr_to_ndarray(
+            output_file.model, objective_linexpr)
         objective_linexpr_new = _ndarray_to_linexpr(
             output_file.model, self.scale * constant, self.scale * coefficients)
         output_file.model.setObjective(objective_linexpr_new)
