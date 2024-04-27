@@ -348,12 +348,12 @@ class ScaleObjective(MPSMutation):
         output_file.append_to_filename('_TS')
 
         # Translate the objective
-        objective_linexpr = output_file.model.getObjective()
+        objective_linexpr = output_file.gurobi_model.getObjective()
         constant, coefficients = _linexpr_to_ndarray(
-            output_file.model, objective_linexpr)
+            output_file.gurobi_model, objective_linexpr)
         objective_linexpr_new = _ndarray_to_linexpr(
-            output_file.model, self.scale * constant, self.scale * coefficients)
-        output_file.model.setObjective(objective_linexpr_new)
+            output_file.gurobi_model, self.scale * constant, self.scale * coefficients)
+        output_file.gurobi_model.setObjective(objective_linexpr_new)
 
         output_file.refresh_cplex_from_gurobi()
 
