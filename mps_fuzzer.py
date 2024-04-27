@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 # Standard library imports
-from typing import List, Optional
+from typing import List, Optional, Generator
 from pathlib import Path
 import contextlib
 import io
@@ -36,14 +36,12 @@ class MPSFile:
         return MPSFile(filename, model)
 
     @staticmethod
-    def read_files(dir: str) -> List[MPSFile]:
+    def read_files(dir: str) -> Generator[MPSFile]:
         """Read a list of mps files from a directory."""
-        mps_files = []
         for file in Path(dir).iterdir():
             if file.is_file():
                 mps_file = MPSFile.from_filepath(str(file))
-                mps_files.append(mps_file)
-        return mps_files
+                yield mps_file
 
     @staticmethod
     def write_files(dir: str, mps_files: List[MPSFile]):
