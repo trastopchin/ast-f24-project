@@ -179,28 +179,45 @@ class MPSFile:
             self.gurobi_model.setParam('OutputFlag', 0)
             self.cplex_model.set_results_stream(None)
 
+        if debug:
+            print("Optimizing Gurobi model")
         self.gurobi_model.update()
         self.gurobi_model.optimize()
         self._obj_val_gurobi = self.gurobi_model.ObjVal
+        if debug:
+            print("Gurobi objective value: ", self._obj_val_gurobi)
 
+        if debug:
+            print("Optimizing CPLEX model")
         self._obj_val_cplex = solve_cplex_model(self.cplex_model, debug=debug)
+        if debug:
+            print("CPLEX objective value: ", self._obj_val_cplex)
 
 
-    def obj_val_gurobi(self):
+    def obj_val_gurobi(self, debug=False):
         """Lazy compute the Gurobi objective value."""
         if self._obj_val_gurobi == None:
-            self.optimize()
+            self.optimize(debug=debug)
+        elif debug:
+            print("Caching Gurobi objective value")
         return self._obj_val_gurobi
 
-    def obj_val_cplex(self):
+    def obj_val_cplex(self, debug=False):
         """Lazy compute the CPLEX objective value."""
         if self._obj_val_cplex == None:
-            self.optimize()
+            self.optimize(debug=debug)
+        elif debug:
+            print("Caching CPLEX objective value")
         return self._obj_val_cplex
 
     def __repr__(self) -> str:
         """Return the filename."""
         return self.filename
+    
+    def check_consistency_btwn_models(self, debug=False) -> bool:
+        gurobi_val = self.obj_val_gurobi(debug=debug)
+        cplex_val = self.obj_val_cplex(debug=debug)
+        return gurobi_val == cplex_val
 
 
 def _linexpr_to_ndarray(model: gp.Model, linexpr: gp.LinExpr) -> tuple[float, np.ndarray]:

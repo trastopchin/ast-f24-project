@@ -17,6 +17,11 @@ if __name__ == '__main__':
     seed_files = MPSFile.read_files('./input')
     generated_files = list[tuple[MPSFile, MPSMetamorphicRelation]]()
 
+    for file in seed_files:
+        print(file)
+        if not file.check_consistency_btwn_models(debug=True):
+            print("Inconsistent optimal value between Gurobi and CPLEX for: ", file)
+
     # Iteratiely apply the mutations
     current_files = seed_files
     next_files = list[MPSFile]()
