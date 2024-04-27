@@ -114,10 +114,13 @@ class MPSFile:
     @staticmethod
     def read_files(dir: str) -> Generator[MPSFile]:
         """Read a list of mps files from a directory."""
-        for file in Path(dir).iterdir():
-            if file.is_file():
-                mps_file = MPSFile.from_filepath(str(file))
-                yield mps_file
+        # Iterate in the order of size, small to large
+        file_sizes = [(file, file.stat().st_size) for file in Path(dir).iterdir() if file.is_file()]
+        file_sizes.sort(key=lambda x: x[1])
+
+        for file, _ in file_sizes:
+            mps_file = MPSFile.from_filepath(str(file))
+            yield mps_file
 
     @staticmethod
     def write_files(dir: str, mps_files: List[MPSFile]):
