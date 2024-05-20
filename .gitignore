@@ -1,0 +1,14 @@
+input/
+output/
+
+# Python
+__pycache__/
+
+# Gurobi
+*.lic
+
+# VSCode
+.vscode/
+
+# MacOS
+.DS_Store
