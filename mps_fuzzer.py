@@ -6,8 +6,6 @@ from typing import List, Optional
 from pathlib import Path
 import contextlib
 import io
-import random
-from copy import deepcopy
 
 # Third-party imports
 import numpy as np
@@ -26,7 +24,7 @@ class MPSFile:
         self._obj_val = None
 
     @ staticmethod
-    def from_filepath(filepath: str) -> MPSFile:
+    def read_file(filepath: str) -> MPSFile:
         """Create an MPSFile from a filepath."""
         filename = Path(filepath).name
         model = None
@@ -41,7 +39,7 @@ class MPSFile:
         mps_files = []
         for file in Path(dir).iterdir():
             if file.is_file():
-                mps_file = MPSFile.from_filepath(str(file))
+                mps_file = MPSFile.read_file(str(file))
                 mps_files.append(mps_file)
         return mps_files
 
@@ -81,27 +79,6 @@ class MPSFile:
     def __repr__(self) -> str:
         """Return the filename."""
         return self.filename
-
-
-def _linexpr_to_ndarray(model: gp.Model, linexpr: gp.LinExpr) -> tuple[float, np.ndarray]:
-    """Convert a gp.LinExpr to a float constant and np.ndarray of coefficients."""
-    constant = linexpr.getConstant()
-    coefficients = np.zeros(model.NumVars)
-    # TODO: linexpr.getCoeff(i) is sparse and only stores non-zero coefficients for variables.
-    # To use np.ndarrays for the transformations we need to get around this.
-    assert (linexpr.size() == model.NumVars)
-    print(model.NumVars)
-    for i in range(model.NumVars):
-        coefficients[i] = linexpr.getCoeff(i)
-    return constant, coefficients
-
-
-def _ndarray_to_linexpr(model: gp.Model, constant: float, coefficients: np.ndarray) -> gp.LinExpr:
-    """Convert a float constant and np.ndarray of coefficents to a gp.LinExpr."""
-    linexpr = gp.LinExpr()
-    linexpr.addConstant(constant)
-    linexpr.addTerms(coefficients, model.getVars())
-    return linexpr
 
 
 class MPSMutation:
@@ -163,12 +140,8 @@ class TranslateObjective(MPSMutation):
         output_file.append_to_filename('_TO')
 
         # Translate the objective
-        objective_linexpr = output_file.model.getObjective()
-        constant, coefficients = _linexpr_to_ndarray(
-            output_file.model, objective_linexpr)
-        objective_linexpr_new = _ndarray_to_linexpr(
-            output_file.model, constant + self.translation, coefficients)
-        output_file.model.setObjective(objective_linexpr_new)
+        objective = output_file.model.getObjective()
+        output_file.model.setObjective(self.translation + objective)
 
         # Create the metamorphic relation
         metamorphic_relation = MPSMetamorphicRelation(
@@ -210,13 +183,9 @@ class ScaleObjective(MPSMutation):
         output_file = input_file.copy()
         output_file.append_to_filename('_TS')
 
-        # Translate the objective
-        objective_linexpr = output_file.model.getObjective()
-        constant, coefficients = _linexpr_to_ndarray(
-            output_file.model, objective_linexpr)
-        objective_linexpr_new = _ndarray_to_linexpr(
-            output_file.model, self.scale * constant, self.scale * coefficients)
-        output_file.model.setObjective(objective_linexpr_new)
+        # Scale the objective
+        objective = output_file.model.getObjective()
+        output_file.model.setObjective(self.scale * objective)
 
         # Create the metamorphic relation
         metamorphic_relation = MPSMetamorphicRelation(
