@@ -10,38 +10,63 @@ import io
 # Third-party imports
 import numpy as np
 import gurobipy as gp
+from gurobipy import GRB
 
 
 class MPSFile:
     """MPSFile class"""
     filename: str
     model: gp.Model
+    time_limit: float
     _obj_val: Optional[float]
+    _status: str
 
-    def __init__(self, filename: Path, model: gp.Model):
+    # Gurobi optimization status code to string
+    gurobi_status_to_string = {
+        GRB.OPTIMAL: "optimal",
+        GRB.TIME_LIMIT: "time_limit"
+    }
+
+    def __init__(self, filename: Path, model: gp.Model, time_limit: float = float('inf')):
         self.filename = filename
         self.model = model
+        self.time_limit = time_limit
         self._obj_val = None
+        self._status = None
+        self.set_time_limit(time_limit)
 
-    @ staticmethod
-    def read_file(filepath: str) -> MPSFile:
+    def set_time_limit(self, time_limit: float):
+        self.time_limit = time_limit
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.model.Params.timeLimit = time_limit
+
+    def over_time_limit(self):
+        self.optimize()
+        return self._status == "time_limit"
+
+    @staticmethod
+    def read_file(filepath: str, time_limit: float = float('inf')) -> MPSFile:
         """Create an MPSFile from a filepath."""
         filename = Path(filepath).name
         model = None
         with contextlib.redirect_stdout(io.StringIO()):
             model = gp.read(filepath)
 
-        return MPSFile(filename, model)
+        return MPSFile(filename, model, time_limit=time_limit)
 
     @staticmethod
-    def read_files(dir: str) -> List[MPSFile]:
+    def read_files(dir: str, time_limit: float = float('inf')) -> List[MPSFile]:
         """Read a list of mps files from a directory."""
         mps_files = []
         for file in Path(dir).iterdir():
             if file.is_file():
-                mps_file = MPSFile.read_file(str(file))
+                mps_file = MPSFile.read_file(str(file), time_limit=time_limit)
                 mps_files.append(mps_file)
         return mps_files
+
+    @staticmethod
+    def write_file(filepath: str, mps_file: MPSFile):
+        mps_file.model.write(filepath)
 
     @staticmethod
     def write_files(dir: str, mps_files: List[MPSFile]):
@@ -53,7 +78,7 @@ class MPSFile:
     def copy(self) -> MPSFile:
         """Copy an MPSFile object"""
         self.model.update()
-        return MPSFile(self.filename, self.model.copy())
+        return MPSFile(self.filename, self.model.copy(), time_limit=self.time_limit)
 
     def append_to_filename(self, to_append: str):
         """Append a string to the filename."""
@@ -62,19 +87,20 @@ class MPSFile:
         extension = stem_and_extension[1]
         self.filename = stem + to_append + '.' + extension
 
-    def optimize(self):
+    def _optimize(self):
         """Optimize the program and save the objective value."""
         # TODO: do we need to check that self.model.Status == gp.GRB.OPTIMAL?
         self.model.setParam('OutputFlag', 0)
         self.model.update()
         self.model.optimize()
         self._obj_val = self.model.ObjVal
+        self._status = MPSFile.gurobi_status_to_string[self.model.Status]
 
-    def obj_val(self):
-        """Lazy compute the objective value."""
+    def optimize(self):
+        """Lazy optimize the model."""
         if self._obj_val == None:
-            self.optimize()
-        return self._obj_val
+            self._optimize()
+        return self._obj_val, self._status
 
     def __repr__(self) -> str:
         """Return the filename."""
@@ -156,10 +182,18 @@ class TranslateObjective(MPSMutation):
         assert (len(input_files) == 1)
         input_file = input_files[0]
 
-        input_obj = input_file.obj_val()
-        output_obj = output_file.obj_val()
-        relation = self.translation + input_obj == output_obj
-        relation_str = f"{self.translation} + {input_obj}  == {output_obj}"
+        input_obj, input_status = input_file.optimize()
+        output_obj, output_status = output_file.optimize()
+
+        # If both reach the time limit, the relation is "not broken"
+        if input_status == "time_limit" and output_status == "time_limit":
+            relation = True
+            relation_str = "time_limit == time_limit"
+        # Otherwise check the relation
+        else:
+            relation = self.translation + \
+                input_obj == output_obj and {input_status} == {output_status}
+            relation_str = f"{self.translation} + {input_obj} == {output_obj}, {input_status} == {output_status}"
 
         return relation, relation_str
 
@@ -200,9 +234,17 @@ class ScaleObjective(MPSMutation):
         assert (len(input_files) == 1)
         input_file = input_files[0]
 
-        input_obj = input_file.obj_val()
-        output_obj = output_file.obj_val()
-        relation = self.scale * input_obj == output_obj
-        relation_str = f"{self.scale} * {input_obj} == {output_obj}"
+        input_obj, input_status = input_file.optimize()
+        output_obj, output_status = output_file.optimize()
+
+        # If both reach the time limit, the relation is "not broken"
+        if input_status == "time_limit" and output_status == "time_limit":
+            relation = True
+            relation_str = "time_limit == time_limit"
+        # Otherwise check the relation
+        else:
+            relation = self.scale * \
+                input_obj == output_obj and {input_status} == {output_status}
+            relation_str = f"{self.scale} * {input_obj} == {output_obj}, {input_status} == {output_status}"
 
         return relation, relation_str
