@@ -44,6 +44,7 @@ class CplexSolveError(Exception):
 #     return new_cpx
 
 
+
 def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
     """
     Solve a CPLEX model and return the objective value.
@@ -85,7 +86,26 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
         for j in range(cpx.variables.get_num()):
             print("Column %d: Value = %17.10g" % (j, x[j]))
 
-    return cpx.solution.get_objective_value(), status
+    cplex_status_to_string = {
+        cpx.solution.status.optimal: "optimal",
+        cpx.solution.status.feasible: "feasible",
+        cpx.solution.status.infeasible: "infeasible",
+        cpx.solution.status.infeasible_or_unbounded: "infeasible_or_unbounded",
+        cpx.solution.status.unbounded: "unbounded",
+        cpx.solution.status.abort_iteration_limit: "abort_iteration_limit",
+        cpx.solution.status.abort_time_limit: "abort_time_limit",
+        cpx.solution.status.MIP_optimal: "mip_optimal",
+        cpx.solution.status.MIP_time_limit_feasible: "mip_time_limit_feasible",
+        cpx.solution.status.MIP_time_limit_infeasible: "mip_time_limit_infeasible",
+        cpx.solution.status.MIP_dettime_limit_feasible: "mip_dettime_limit_feasible",
+        cpx.solution.status.MIP_dettime_limit_infeasible: "mip_dettime_limit_infeasible",
+        cpx.solution.status.optimal_tolerance: "mip_optimal_tolerance",
+        cpx.solution.status.MIP_abort_feasible: "mip_abort_feasible",
+        cpx.solution.status.MIP_abort_infeasible: "mip_abort_infeasible",
+        # Add more statuses as needed
+    }
+
+    return cpx.solution.get_objective_value(), cplex_status_to_string[status]
 
 class MPSFile:
     """MPSFile class"""
@@ -103,6 +123,8 @@ class MPSFile:
         GRB.OPTIMAL: "optimal",
         GRB.TIME_LIMIT: "time_limit"
     }
+
+
 
     def __init__(
         self,
@@ -124,7 +146,12 @@ class MPSFile:
     def set_time_limit(self, time_limit: float):
         self.time_limit = time_limit
         with contextlib.redirect_stdout(io.StringIO()):
-            self.model.Params.timeLimit = time_limit
+            self.gurobi_model.Params.TimeLimit = time_limit
+        
+        # TODO: set time limit for CPLEX model as well
+        if self.cplex_model is not None:
+            self.cplex_model.parameters.timelimit.set(time_limit)
+
 
     def over_time_limit(self):
         self.optimize()
@@ -148,7 +175,7 @@ class MPSFile:
         file_sizes.sort(key=lambda x: x[1])
 
         for file, _ in file_sizes:
-            mps_file = MPSFile.from_filepath(str(file), time_limit=time_limit)
+            mps_file = MPSFile.read_file(str(file), time_limit=time_limit)
             yield mps_file
 
     @staticmethod
@@ -199,6 +226,8 @@ class MPSFile:
             self.gurobi_model.write(f'temp{rand_name}.mps')
             self.cplex_model.read(f'temp{rand_name}.mps')
             Path(f'temp{rand_name}.mps').unlink()
+
+        self.cplex_model.parameters.timelimit.set(self.time_limit)
 
 
 
@@ -410,8 +439,8 @@ class ScaleObjective(MPSMutation):
         assert (len(input_files) == 1)
         input_file = input_files[0]
 
-        input_obj, input_status = input_file.obj_val() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
-        output_obj, output_status = output_file.obj_val() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
+        input_obj, input_status = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
+        output_obj, output_status = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
         # If both reach the time limit, the relation is "not broken"
         if input_status == "time_limit" and output_status == "time_limit":
             relation = True
