@@ -14,6 +14,7 @@ import itertools
 import numpy as np
 import gurobipy as gp
 import cplex as cp
+from gurobipy import GRB
 
 
 # Enumerate the possible solver types
@@ -84,43 +85,75 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
         for j in range(cpx.variables.get_num()):
             print("Column %d: Value = %17.10g" % (j, x[j]))
 
-    return cpx.solution.get_objective_value()
+    return cpx.solution.get_objective_value(), status
 
 class MPSFile:
     """MPSFile class"""
     filename: str
     gurobi_model: gp.Model
     cplex_model: cp.Cplex
+    time_limit: float
     _obj_val_gurobi: Optional[float]
     _obj_val_cplex: Optional[float]
+    _status_gurobi: str
+    _status_cplex: str
 
-    def __init__(self, filename: Path, gurobi_model: gp.Model, cplex_model: Optional[cp.Cplex]):
+    # Gurobi optimization status code to string
+    gurobi_status_to_string = {
+        GRB.OPTIMAL: "optimal",
+        GRB.TIME_LIMIT: "time_limit"
+    }
+
+    def __init__(
+        self,
+        filename: Path,
+        gurobi_model: gp.Model,
+        cplex_model: Optional[cp.Cplex],
+        time_limit: float = float('inf')
+    ):
         self.filename = filename
         self.gurobi_model = gurobi_model
         self.cplex_model = cplex_model
+        self.time_limit = time_limit
         self._obj_val_gurobi = None
         self._obj_val_cplex = None
+        self._status_gurobi = None
+        self._status_cplex = None
+        self.set_time_limit(time_limit)
 
-    @ staticmethod
-    def from_filepath(filepath: str) -> MPSFile:
+    def set_time_limit(self, time_limit: float):
+        self.time_limit = time_limit
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.model.Params.timeLimit = time_limit
+
+    def over_time_limit(self):
+        self.optimize()
+        return self._status_gurobi == "time_limit"
+
+    @staticmethod
+    def read_file(filepath: str, time_limit: float = float('inf')) -> MPSFile:
         """Create an MPSFile from a filepath."""
         filename = Path(filepath).name
         with contextlib.redirect_stdout(io.StringIO()):
             gurobi_model = gp.read(filepath)
             cplex_model = cp.Cplex(filepath)
 
-        return MPSFile(filename, gurobi_model, cplex_model)
+        return MPSFile(filename, gurobi_model, cplex_model, time_limit=time_limit)
 
     @staticmethod
-    def read_files(dir: str) -> Generator[MPSFile]:
+    def read_files(dir: str, time_limit: float = float('inf')) -> Generator[MPSFile]:
         """Read a list of mps files from a directory."""
         # Iterate in the order of size, small to large
         file_sizes = [(file, file.stat().st_size) for file in Path(dir).iterdir() if file.is_file()]
         file_sizes.sort(key=lambda x: x[1])
 
         for file, _ in file_sizes:
-            mps_file = MPSFile.from_filepath(str(file))
+            mps_file = MPSFile.from_filepath(str(file), time_limit=time_limit)
             yield mps_file
+
+    @staticmethod
+    def write_file(filepath: str, mps_file: MPSFile):
+        mps_file.model.write(filepath)
 
     @staticmethod
     def write_files(dir: str, mps_files: List[MPSFile]):
@@ -136,7 +169,8 @@ class MPSFile:
             self.filename,
             self.gurobi_model.copy(),
             # copy_cplex_model(self.cplex_model)
-            None
+            None,
+            time_limit=self.time_limit
         )
     
     def refresh_cplex_from_gurobi(self):
@@ -187,12 +221,13 @@ class MPSFile:
         self.gurobi_model.update()
         self.gurobi_model.optimize()
         self._obj_val_gurobi = self.gurobi_model.ObjVal
+        self._status_gurobi = MPSFile.gurobi_status_to_string[self.gurobi_model.Status]
         if debug:
             print("Gurobi objective value: ", self._obj_val_gurobi)
 
         if debug:
             print("Optimizing CPLEX model")
-        self._obj_val_cplex = solve_cplex_model(self.cplex_model, debug=debug)
+        self._obj_val_cplex, self._status_cplex = solve_cplex_model(self.cplex_model, debug=debug)
         if debug:
             print("CPLEX objective value: ", self._obj_val_cplex)
 
@@ -203,7 +238,7 @@ class MPSFile:
             self.optimize(debug=debug)
         elif debug:
             print("Caching Gurobi objective value")
-        return self._obj_val_gurobi
+        return self._obj_val_gurobi, self._status_gurobi
 
     def obj_val_cplex(self, debug=False):
         """Lazy compute the CPLEX objective value."""
@@ -211,7 +246,7 @@ class MPSFile:
             self.optimize(debug=debug)
         elif debug:
             print("Caching CPLEX objective value")
-        return self._obj_val_cplex
+        return self._obj_val_cplex, self._status_cplex
 
     def __repr__(self) -> str:
         """Return the filename."""
@@ -221,27 +256,6 @@ class MPSFile:
         gurobi_val = self.obj_val_gurobi(debug=debug)
         cplex_val = self.obj_val_cplex(debug=debug)
         return gurobi_val == cplex_val
-
-
-def _linexpr_to_ndarray(model: gp.Model, linexpr: gp.LinExpr) -> tuple[float, np.ndarray]:
-    """Convert a gp.LinExpr to a float constant and np.ndarray of coefficients."""
-    constant = linexpr.getConstant()
-    coefficients = np.zeros(model.NumVars)
-    # TODO: linexpr.getCoeff(i) is sparse and only stores non-zero coefficients for variables.
-    # To use np.ndarrays for the transformations we need to get around this.
-    assert (linexpr.size() == model.NumVars)
-    print(model.NumVars)
-    for i in range(model.NumVars):
-        coefficients[i] = linexpr.getCoeff(i)
-    return constant, coefficients
-
-
-def _ndarray_to_linexpr(model: gp.Model, constant: float, coefficients: np.ndarray) -> gp.LinExpr:
-    """Convert a float constant and np.ndarray of coefficents to a gp.LinExpr."""
-    linexpr = gp.LinExpr()
-    linexpr.addConstant(constant)
-    linexpr.addTerms(coefficients, model.getVars())
-    return linexpr
 
 
 class MPSMutation:
@@ -312,13 +326,8 @@ class TranslateObjective(MPSMutation):
         output_file.append_to_filename('_TO')
 
         # Translate the objective
-        objective_linexpr = output_file.gurobi_model.getObjective()
-        constant, coefficients = _linexpr_to_ndarray(
-            output_file.gurobi_model, objective_linexpr)
-        objective_linexpr_new = _ndarray_to_linexpr(
-            output_file.gurobi_model, constant + self.translation, coefficients)
-        output_file.gurobi_model.setObjective(objective_linexpr_new)
-
+        objective = output_file.gurobi_model.getObjective()
+        output_file.gurobi_model.setObjective(self.translation + objective)
         output_file.refresh_cplex_from_gurobi()
 
         # Create the metamorphic relation
@@ -340,8 +349,17 @@ class TranslateObjective(MPSMutation):
         assert (len(input_files) == 1)
         input_file = input_files[0]
 
-        input_obj = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
-        output_obj = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
+        input_obj, input_status = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
+        output_obj, output_status = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
+        # If both reach the time limit, the relation is "not broken"
+        if input_status == "time_limit" and output_status == "time_limit":
+            relation = True
+            relation_str = "time_limit == time_limit"
+        # Otherwise check the relation
+        else:
+            relation = self.translation + \
+                input_obj == output_obj and {input_status} == {output_status}
+            relation_str = f"{self.translation} + {input_obj} == {output_obj}, {input_status} == {output_status}"
         relation = self.translation + input_obj == output_obj
         relation_str = f"{self.translation} + {input_obj}  == {output_obj}"
 
@@ -367,13 +385,9 @@ class ScaleObjective(MPSMutation):
         output_file = input_file.copy()
         output_file.append_to_filename('_TS')
 
-        # Translate the objective
-        objective_linexpr = output_file.gurobi_model.getObjective()
-        constant, coefficients = _linexpr_to_ndarray(
-            output_file.gurobi_model, objective_linexpr)
-        objective_linexpr_new = _ndarray_to_linexpr(
-            output_file.gurobi_model, self.scale * constant, self.scale * coefficients)
-        output_file.gurobi_model.setObjective(objective_linexpr_new)
+        # Scale the objective
+        objective = output_file.gurobi_model.getObjective()
+        output_file.gurobi_model.setObjective(self.scale * objective)
 
         output_file.refresh_cplex_from_gurobi()
 
@@ -396,9 +410,16 @@ class ScaleObjective(MPSMutation):
         assert (len(input_files) == 1)
         input_file = input_files[0]
 
-        input_obj = input_file.obj_val() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
-        output_obj = output_file.obj_val() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
-        relation = self.scale * input_obj == output_obj
-        relation_str = f"{self.scale} * {input_obj} == {output_obj}"
+        input_obj, input_status = input_file.obj_val() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
+        output_obj, output_status = output_file.obj_val() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
+        # If both reach the time limit, the relation is "not broken"
+        if input_status == "time_limit" and output_status == "time_limit":
+            relation = True
+            relation_str = "time_limit == time_limit"
+        # Otherwise check the relation
+        else:
+            relation = self.scale * \
+                input_obj == output_obj and {input_status} == {output_status}
+            relation_str = f"{self.scale} * {input_obj} == {output_obj}, {input_status} == {output_status}"
 
         return relation, relation_str

@@ -1,3 +1,16 @@
-input/*
 collection.zip
 cplex_studio2211.linux_x86_64.bin
+input/
+output/
+
+# Python
+__pycache__/
+
+# Gurobi
+*.lic
+
+# VSCode
+.vscode/
+
+# MacOS
+.DS_Store
