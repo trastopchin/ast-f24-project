@@ -50,33 +50,25 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
     Solve a CPLEX model and return the objective value.
     """
     # Inspired by: https://github.com/cswaroop/cplex-samples/blob/master/mipex2.py
+    def dprint(*args, **kwargs):
+        if debug:
+            print(*args, **kwargs)
 
     cpx.solve()
 
     # solution.get_status() returns an integer code
     status = cpx.solution.get_status()
-    if debug:
-        print(cpx.solution.status[status])
-
-    if status == cpx.solution.status.unbounded:
-        raise(CplexSolveError("Model is unbounded"))
-    if status == cpx.solution.status.infeasible:
-        raise(CplexSolveError("Model is infeasible"))
-    if status == cpx.solution.status.infeasible_or_unbounded:
-        raise(CplexSolveError("Model is infeasible or unbounded"))
 
     s_method = cpx.solution.get_method()
     s_type   = cpx.solution.get_solution_type()
 
-    if debug:
-        print("Solution status = " , status, ":")
-        # the following line prints the status as a string
-        print(cpx.solution.status[status])
+    dprint("Solution status = " , status, ":")
+    # the following line prints the status as a string
+    dprint(cpx.solution.status[status])
     
     if s_type == cpx.solution.type.none:
-        raise(CplexSolveError("No solution available"))
-
-    if debug:
+        dprint("CplexSolveError(No solution available)")
+    elif debug:
         print("Objective value = " , cpx.solution.get_objective_value())
 
         x = cpx.solution.get_values(0, cpx.variables.get_num()-1)
@@ -94,18 +86,26 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
         cpx.solution.status.unbounded: "unbounded",
         cpx.solution.status.abort_iteration_limit: "abort_iteration_limit",
         cpx.solution.status.abort_time_limit: "abort_time_limit",
-        cpx.solution.status.MIP_optimal: "mip_optimal",
-        cpx.solution.status.MIP_time_limit_feasible: "mip_time_limit_feasible",
-        cpx.solution.status.MIP_time_limit_infeasible: "mip_time_limit_infeasible",
-        cpx.solution.status.MIP_dettime_limit_feasible: "mip_dettime_limit_feasible",
-        cpx.solution.status.MIP_dettime_limit_infeasible: "mip_dettime_limit_infeasible",
-        cpx.solution.status.optimal_tolerance: "mip_optimal_tolerance",
-        cpx.solution.status.MIP_abort_feasible: "mip_abort_feasible",
-        cpx.solution.status.MIP_abort_infeasible: "mip_abort_infeasible",
+        cpx.solution.status.MIP_optimal: "optimal",
+        cpx.solution.status.MIP_time_limit_feasible: "time_limit_feasible",
+        cpx.solution.status.MIP_time_limit_infeasible: "time_limit_infeasible",
+        cpx.solution.status.MIP_dettime_limit_feasible: "dettime_limit_feasible",
+        cpx.solution.status.MIP_dettime_limit_infeasible: "dettime_limit_infeasible",
+        cpx.solution.status.optimal_tolerance: "optimal_tolerance",
+        cpx.solution.status.MIP_abort_feasible: "abort_feasible",
+        cpx.solution.status.MIP_abort_infeasible: "abort_infeasible",
+        cpx.solution.status.MIP_infeasible: "infeasible",
         # Add more statuses as needed
     }
 
-    return cpx.solution.get_objective_value(), cplex_status_to_string[status]
+    dprint("Status: ", cplex_status_to_string[status])
+
+    return (
+        cpx.solution.get_objective_value() 
+        if cplex_status_to_string[status] in ["optimal", "time_limit_feasible"] else None
+        ,
+        cplex_status_to_string[status]
+    )
 
 class MPSFile:
     """MPSFile class"""
@@ -121,7 +121,14 @@ class MPSFile:
     # Gurobi optimization status code to string
     gurobi_status_to_string = {
         GRB.OPTIMAL: "optimal",
-        GRB.TIME_LIMIT: "time_limit"
+        GRB.TIME_LIMIT: "time_limit",
+        GRB.INFEASIBLE: "infeasible",
+        GRB.INF_OR_UNBD: "inf_or_unbd",
+        GRB.UNBOUNDED: "unbounded",
+        GRB.CUTOFF: "cutoff",
+        GRB.ITERATION_LIMIT: "iteration_limit",
+        GRB.NODE_LIMIT: "node_limit",
+        GRB.SOLUTION_LIMIT: "solution_limit",
     }
 
 
@@ -240,25 +247,28 @@ class MPSFile:
 
     def optimize(self, debug=False):
         """Optimize the program and save the objective value."""
+        def dprint(*args, **kwargs):
+            if debug:
+                print(*args, **kwargs)
+
         # TODO: do we need to check that self.model.Status == gp.GRB.OPTIMAL?
         if not debug:
             self.gurobi_model.setParam('OutputFlag', 0)
             self.cplex_model.set_results_stream(None)
 
-        if debug:
-            print("Optimizing Gurobi model")
+        dprint("Optimizing Gurobi model")
         self.gurobi_model.update()
         self.gurobi_model.optimize()
-        self._obj_val_gurobi = self.gurobi_model.ObjVal
         self._status_gurobi = MPSFile.gurobi_status_to_string[self.gurobi_model.Status]
-        if debug:
-            print("Gurobi objective value: ", self._obj_val_gurobi)
+        self._obj_val_gurobi = self.gurobi_model.ObjVal if self._status_gurobi == "optimal" else None
 
-        if debug:
-            print("Optimizing CPLEX model")
+        dprint("Gurobi status: ", self._status_gurobi)
+        dprint("Gurobi objective value: ", self._obj_val_gurobi)
+
+        dprint("Optimizing CPLEX model")
+
         self._obj_val_cplex, self._status_cplex = solve_cplex_model(self.cplex_model, debug=debug)
-        if debug:
-            print("CPLEX objective value: ", self._obj_val_cplex)
+        dprint("CPLEX objective value: ", self._obj_val_cplex)
 
 
     def obj_val_gurobi(self, debug=False):
@@ -381,16 +391,13 @@ class TranslateObjective(MPSMutation):
         input_obj, input_status = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
         output_obj, output_status = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
         # If both reach the time limit, the relation is "not broken"
-        if input_status == "time_limit" and output_status == "time_limit":
+        if input_status == output_status and input_status != "optimal":
             relation = True
-            relation_str = "time_limit == time_limit"
+            relation_str = f"{input_status} == {output_status}"
         # Otherwise check the relation
         else:
-            relation = self.translation + \
-                input_obj == output_obj and {input_status} == {output_status}
+            relation = status_cmp(input_status, output_status) and (self.translation + input_obj) == output_obj
             relation_str = f"{self.translation} + {input_obj} == {output_obj}, {input_status} == {output_status}"
-        relation = self.translation + input_obj == output_obj
-        relation_str = f"{self.translation} + {input_obj}  == {output_obj}"
 
         return relation, relation_str
 
@@ -442,13 +449,24 @@ class ScaleObjective(MPSMutation):
         input_obj, input_status = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
         output_obj, output_status = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
         # If both reach the time limit, the relation is "not broken"
-        if input_status == "time_limit" and output_status == "time_limit":
+        if input_status == output_status and input_status != "optimal":
             relation = True
-            relation_str = "time_limit == time_limit"
+            relation_str = f"{input_status} == {output_status}"
         # Otherwise check the relation
         else:
-            relation = self.scale * \
-                input_obj == output_obj and {input_status} == {output_status}
+            relation = status_cmp(input_status, output_status) and (self.scale * input_obj) == output_obj
             relation_str = f"{self.scale} * {input_obj} == {output_obj}, {input_status} == {output_status}"
 
         return relation, relation_str
+
+
+def status_cmp(status1: str, status2: str) -> bool:
+    """Compare two solver statuses."""
+    if status1 == status2:
+        return True
+    elif status1 in ["optimal", "time_limit_feasible"] and status2 in ["optimal", "time_limit_feasible"]:
+        return True
+    elif status1 in ["infeasible", "time_limit_infeasible"] and status2 in ["infeasible", "time_limit_infeasible"]:
+        return True
+
+    return False
