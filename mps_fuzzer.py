@@ -9,6 +9,7 @@ import io
 import random
 from copy import deepcopy
 import itertools
+import json
 
 # Third-party imports
 import numpy as np
@@ -470,3 +471,31 @@ def status_cmp(status1: str, status2: str) -> bool:
         return True
 
     return False
+
+class OptimizerBug:
+    @staticmethod
+    def consistency_bug(file: MPSFile) -> dict:
+        # Record the generated bug
+        bug = {}
+        bug['type'] = 'inconsistency'
+        bug['file'] = file.filename
+        obj_val_gurobi, status_gurobi = file.obj_val_gurobi()
+        obj_val_cplex, status_cplex = file.obj_val_cplex()
+        bug['obj_val_gurobi'] = obj_val_gurobi
+        bug['status_gurobi'] = status_gurobi
+        bug['obj_val_cplex'] = obj_val_cplex
+        bug['status_cplex'] = status_cplex
+        return bug
+    
+    @staticmethod
+    def metamorphic_bug(relation: MPSMetamorphicRelation):
+        # The programs are optimized lazily, so this should not incurr overhead
+        holds, relation_str = relation.check()
+        bug = {}
+        bug['type'] = 'metamorphic'
+        bug['input_files'] = [file.filename for file in relation.input_files]
+        bug['output_file'] = relation.output_file.filename
+        bug['relation'] = type(relation.mutation).__name__
+        bug['relation_str'] = relation_str
+        # Do we need the input and output solver types?
+        return bug

@@ -3,9 +3,9 @@ from typing import List
 
 from mps_fuzzer import MPSFile, MPSMutation, MPSMetamorphicRelation
 from mps_fuzzer import TranslateObjective, ScaleObjective
+from mps_fuzzer import OptimizerBug
+import json
 from tqdm import tqdm
-
-from pathlib import Path
 
 
 def set_gurobi_license(filepath: str):
@@ -13,32 +13,22 @@ def set_gurobi_license(filepath: str):
     os.environ['GRB_LICENSE_FILE'] = filepath
 
 
-# No need to do this since we sort by file size
-# def remove_over_time_limit(mps_files: List[MPSFile], num_files: int):
-#     valid_files = []
-#     for mps_file in tqdm(mps_files, total=num_files,
-#                          desc="Remove over time limit"):
-#         if not mps_file.over_time_limit():
-#             valid_files.append(mps_file)
-#     return valid_files
-
-
 if __name__ == '__main__':
     set_gurobi_license('./gurobi.lic')
-
-    # fast_inputs = ['10teams.mps.gz', '30_70_45_05_100.mps.gz', '30_70_45_095_100.mps.gz', '30_70_45_095_98.mps.gz', '30n20b8.mps.gz']
 
     # Read the seed files
     INPUT_SEED_DIR='./input'
     seed_files = MPSFile.read_files(INPUT_SEED_DIR, time_limit=20)
-    # num_files = sum(1 for file in Path(INPUT_SEED_DIR).iterdir() if file.is_file())
-    # seed_files = remove_over_time_limit(seed_files, num_files)
     generated_files = list[tuple[MPSFile, MPSMetamorphicRelation]]()
+    generated_bugs = list[dict]
 
     for file in seed_files:
         print(file)
+        # Consistency bug
         if not file.check_consistency_btwn_models(debug=True):
             print("Inconsistent optimal value between Gurobi and CPLEX for: ", file)
+            bug = OptimizerBug.consistency_bug(file)
+            generated_bugs.append(bug)
 
         # Iteratively apply the mutations
         current_files = [file]
@@ -57,6 +47,10 @@ if __name__ == '__main__':
                 if not output_file.over_time_limit():
                     next_files.append(output_file)
                     generated_files.append(output_file)
+                    # Metamorphic bug
+                    if not holds:
+                        bug = OptimizerBug.metamorphic_bug(relation)
+                        generated_bugs.append(bug)
 
             # Scale Objective
             for input_file in tqdm(current_files, total=len(current_files),
@@ -67,9 +61,21 @@ if __name__ == '__main__':
                 if not output_file.over_time_limit():
                     next_files.append(output_file)
                     generated_files.append(output_file)
+                    # Metamorphic bug
+                    if not holds:
+                        bug = OptimizerBug.metamorphic_bug(relation)
+                        generated_bugs.append(bug)
 
             current_files = next_files.copy()
             next_files.clear()
 
+    # Write the generated files
     MPSFile.write_files('./output', generated_files)
     print("Wrote generated MPS files!")
+    
+    # Write the generated bugs
+    bug_file = "./output/bugs.txt"
+    with open(bug_file, 'a') as file:
+        for bug in generated_bugs:
+            file.write(json.dumps(bug) + "\n")
+        
