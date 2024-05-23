@@ -189,14 +189,14 @@ class MPSFile:
 
     @staticmethod
     def write_file(filepath: str, mps_file: MPSFile):
-        mps_file.model.write(filepath)
+        mps_file.gurobi_model.write(filepath)
 
     @staticmethod
     def write_files(dir: str, mps_files: List[MPSFile]):
         """Write a list of mps files to a directory."""
         for mps_file in mps_files:
             output_path = Path(dir) / mps_file.filename
-            mps_file.model.write(str(output_path))
+            mps_file.gurobi_model.write(str(output_path))
 
     def copy(self) -> MPSFile:
         """Copy an MPSFile object"""
