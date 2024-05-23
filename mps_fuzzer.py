@@ -494,6 +494,8 @@ class Result:
         result['type'] = 'consistency'
         result['bug'] = bug
         result['file'] = file.filename
+        # To help filter previously processed files
+        result['relation'] = 'Consistency'
         obj_val_gurobi, status_gurobi = file.obj_val_gurobi()
         obj_val_cplex, status_cplex = file.obj_val_cplex()
         result['obj_val_gurobi'] = obj_val_gurobi

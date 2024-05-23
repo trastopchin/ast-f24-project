@@ -30,51 +30,56 @@ if __name__ == '__main__':
     n_seed_files = len([file for file in Path(INPUT_SEED_DIR).iterdir() if file.is_file() and (filters is None or any(f in file.name for f in filters))])
     
     # Read the processed files
-    processed_filenames = set[str]()
+    processed = set[tuple[str, str]]()
     try:
         with open(RESULTS_FILEPATH, 'r') as file:
             for line in file:
                 result = json.loads(line)
-                processed_filenames.add(result['file'])
+                processed.add((result['file'], result['relation']))
     except FileNotFoundError:
         pass
 
+    # Process each unprocessed file
     for file in (pbar := tqdm(seed_files, total=n_seed_files)):
         
-        # Skip previously processed files
-        if file.filename in processed_filenames:
-            pbar.update(1)
-            continue
-        
-        # Update progress bar description
-        pbar.set_description(f"Processing {file}. Consistency check")
-        
-        # Check for consistency between optimizers
-        bug = not file.check_consistency_btwn_models(debug=False)
-        # Log the result
-        result = Result.optimizer_consistency(file, bug)
-        append_to_results(str(result))
+        if (file.filename, "Consistency") not in processed:
+            # Update progress bar description
+            pbar.set_description(f"Processing {file}. Consistency check")
+            
+            # Check for consistency between optimizers
+            bug = not file.check_consistency_btwn_models(debug=False)
+            
+            # Log the result
+            result = Result.optimizer_consistency(file, bug)
+            append_to_results(str(result))
 
-        # Update progress bar description
-        pbar.set_description(f"Processing {file}. Translate objective")
 
-        # Translate Objective
-        translate_objective = TranslateObjective()
-        output_file, relation = translate_objective.mutate([file])
-        # Check that metamorphic relation holds
-        holds, relation_str = relation.check(debug=False)
-        # Log the result
-        result = Result.metamorphic_relation(relation, holds, relation_str)
-        append_to_results(str(result))
+        if (file.filename, "TranslateObjective") not in processed:
+            # Update progress bar description
+            pbar.set_description(f"Processing {file}. Translate objective")
+
+            # Translate Objective
+            translate_objective = TranslateObjective()
+            output_file, relation = translate_objective.mutate([file])
+            
+            # Check that metamorphic relation holds
+            holds, relation_str = relation.check(debug=False)
+            
+            # Log the result
+            result = Result.metamorphic_relation(relation, holds, relation_str)
+            append_to_results(str(result))
         
-        # Update progress bar description
-        pbar.set_description(f"Processing {file}. Scale objective")
+        if (file.filename, "ScaleObjective") not in processed:
+            # Update progress bar description
+            pbar.set_description(f"Processing {file}. Scale objective")
 
-        # Scale Objective
-        scale_objective = ScaleObjective()
-        output_file, relation = scale_objective.mutate([file])
-        # Check that metamorphic relation holds
-        holds, relation_str = relation.check(debug=False)
-        # Log the result
-        result = Result.metamorphic_relation(relation, holds, relation_str)
-        append_to_results(str(result))
+            # Scale Objective
+            scale_objective = ScaleObjective()
+            output_file, relation = scale_objective.mutate([file])
+            
+            # Check that metamorphic relation holds
+            holds, relation_str = relation.check(debug=False)
+            
+            # Log the result
+            result = Result.metamorphic_relation(relation, holds, relation_str)
+            append_to_results(str(result))
