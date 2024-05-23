@@ -25,25 +25,6 @@ class Solver(str):
 class CplexSolveError(Exception):
     """Custom exception for Cplex solve errors."""
 
-# def copy_cplex_model(old_cpx: cp.Cplex) -> cp.Cplex:
-#     """Clone a cplex model object"""
-#     # Check if this works...
-#     new_cpx = cp.Cplex()
-#     new_cpx.copylp(numcols=old_cpx.variables.get_num(),
-#                numrows=old_cpx.linear_constraints.get_num(),
-#                objsense=old_cpx.objective.get_sense(),
-#                obj=old_cpx.objective.get_linear(),
-#                rhs=old_cpx.linear_constraints.get_rhs(),
-#                senses=old_cpx.linear_constraints.get_senses(),
-#                matbeg=old_cpx.linear_constraints.get_rows()[0],
-#                matcnt=old_cpx.linear_constraints.get_rows()[1],
-#                matind=old_cpx.linear_constraints.get_rows()[2],
-#                matval=old_cpx.linear_constraints.get_coefficients(),
-#                lb=old_cpx.variables.get_lower_bounds(),
-#                ub=old_cpx.variables.get_upper_bounds())
-#     return new_cpx
-
-
 
 def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
     """
