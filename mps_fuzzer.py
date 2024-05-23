@@ -263,7 +263,15 @@ class MPSFile:
         self.gurobi_model.update()
         self.gurobi_model.optimize()
         self._status_gurobi = MPSFile.gurobi_status_to_string[self.gurobi_model.Status]
-        self._obj_val_gurobi = self.gurobi_model.ObjVal if self._status_gurobi == "optimal" else None
+        # print(self.gurobi_model.SolCount, self._status_gurobi)
+        self._obj_val_gurobi = self.gurobi_model.ObjVal if self.gurobi_model.SolCount > 0 else None
+
+        if self._status_gurobi == "time_limit":
+            if self.gurobi_model.SolCount > 0:
+                self._status_gurobi = "time_limit_feasible"
+            else:
+                self._status_gurobi = "time_limit_infeasible"
+
 
         dprint("Gurobi status: ", self._status_gurobi)
         dprint("Gurobi objective value: ", self._obj_val_gurobi)
