@@ -177,10 +177,10 @@ class MPSFile:
         return MPSFile(filename, gurobi_model, cplex_model, time_limit=time_limit)
 
     @staticmethod
-    def read_files(dir: str, time_limit: float = float('inf')) -> Generator[MPSFile]:
+    def read_files(dir: str, time_limit: float = float('inf'), filters=None) -> Generator[MPSFile]:
         """Read a list of mps files from a directory."""
         # Iterate in the order of size, small to large
-        file_sizes = [(file, file.stat().st_size) for file in Path(dir).iterdir() if file.is_file()]
+        file_sizes = [(file, file.stat().st_size) for file in Path(dir).iterdir() if file.is_file() and (filters is None or any(f in file.name for f in filters))]
         file_sizes.sort(key=lambda x: x[1])
 
         for file, _ in file_sizes:

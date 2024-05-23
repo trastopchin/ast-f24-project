@@ -23,8 +23,10 @@ if __name__ == '__main__':
 
     # Read the seed files
     INPUT_SEED_DIR='./input'
-    seed_files = MPSFile.read_files(INPUT_SEED_DIR, time_limit=20)
-    n_seed_files = len([file for file in Path(INPUT_SEED_DIR).iterdir() if file.is_file()])
+    filters = None
+    # filters = ['noswot'] # Comment this line to include all files
+    seed_files = MPSFile.read_files(INPUT_SEED_DIR, time_limit=20, filters=filters)
+    n_seed_files = len([file for file in Path(INPUT_SEED_DIR).iterdir() if file.is_file() and (filters is None or any(f in file.name for f in filters))])
     generated_files = list[tuple[MPSFile, MPSMetamorphicRelation]]()
     generated_bugs = list[dict]()
 
