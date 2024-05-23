@@ -81,9 +81,15 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
 
     dprint("Status: ", cplex_status_to_string[status])
 
+    acceptable_cplex_status_strs = [
+        "optimal",
+        "time_limit_feasible",
+        "optimal_tolerance"
+    ]
+
     return (
         cpx.solution.get_objective_value() 
-        if cplex_status_to_string[status] in ["optimal", "time_limit_feasible"] else None
+        if cplex_status_to_string[status] in acceptable_cplex_status_strs else None
         ,
         cplex_status_to_string[status]
     )
