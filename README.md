@@ -18,3 +18,5 @@ the installer and follow the instructions.  In our case, we installed to
 `python3 /opt/ibm/ILOG/CPLEX_Studio2211/python/setup.py install`
 
 4. Install Gurobi. Just run: `pip install gurobipy`
+
+5. Install tqdm. Just run: `pip install tqdm`
