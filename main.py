@@ -42,7 +42,7 @@ if __name__ == '__main__':
         # Iteratively apply the mutations
         current_files = [file]
         next_files = list[MPSFile]()
-        depth = 4
+        depth = 1
 
         for i in range(depth):
             desc = f"Iteration {i+1}/{depth}"
