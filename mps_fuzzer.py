@@ -10,6 +10,8 @@ import random
 from copy import deepcopy
 import itertools
 import json
+import sys
+import os
 
 # Third-party imports
 import numpy as np
@@ -168,8 +170,9 @@ class MPSFile:
         """Create an MPSFile from a filepath."""
         filename = Path(filepath).name
         with contextlib.redirect_stdout(io.StringIO()):
-            gurobi_model = gp.read(filepath)
-            cplex_model = cp.Cplex(filepath)
+            with contextlib.redirect_stderr(io.StringIO()):
+                gurobi_model = gp.read(filepath)
+                cplex_model = cp.Cplex(filepath)
 
         return MPSFile(filename, gurobi_model, cplex_model, time_limit=time_limit)
 
@@ -229,6 +232,7 @@ class MPSFile:
         # Second approach: copy the Gurobi model to CPLEX by reading and writing to a fake MPS file
         with contextlib.redirect_stdout(io.StringIO()):
             self.cplex_model = cp.Cplex()
+            self.cplex_model.set_warning_stream(None)
             rand_name = str(random.randint(0, 1000000))
             self.gurobi_model.write(f'temp{rand_name}.mps')
             self.cplex_model.read(f'temp{rand_name}.mps')

@@ -28,16 +28,17 @@ if __name__ == '__main__':
     generated_files = list[tuple[MPSFile, MPSMetamorphicRelation]]()
     generated_bugs = list[dict]()
 
-    for file in tqdm(seed_files, total=n_seed_files):
-        print(file)
+    for file in (pbar := tqdm(seed_files, total=n_seed_files)):
+        pbar.set_description(f"Processing {file}")
         # Consistency bug
         if not file.check_consistency_btwn_models(debug=False):
             # print("Inconsistent optimal value between Gurobi and CPLEX for: ", file)
             bug = OptimizerBug.consistency_bug(file)
             generated_bugs.append(bug)
             data = json.dumps(bug)
-            print(data)
+            #print(data)
             append_to_results(data)
+        # Consistency bug
 
         # Iteratively apply the mutations
         current_files = [file]
@@ -45,7 +46,7 @@ if __name__ == '__main__':
         depth = 1
 
         for i in range(depth):
-            desc = f"Iteration {i+1}/{depth}"
+            # desc = f"Iteration {i+1}/{depth}"
 
             # Translate Objective
             for input_file in current_files:
@@ -60,7 +61,7 @@ if __name__ == '__main__':
                         bug = OptimizerBug.metamorphic_bug(relation)
                         generated_bugs.append(bug)
                         data = json.dumps(bug)
-                        print(data)
+                        # print(data)
                         append_to_results(data)
 
             # Scale Objective
@@ -76,7 +77,7 @@ if __name__ == '__main__':
                         bug = OptimizerBug.metamorphic_bug(relation)
                         generated_bugs.append(bug)
                         data = json.dumps(bug)
-                        print(data)
+                        # print(data)
                         append_to_results(data)
 
             current_files = next_files.copy()
