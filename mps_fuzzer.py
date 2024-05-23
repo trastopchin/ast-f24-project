@@ -326,28 +326,24 @@ class MPSMetamorphicRelation:
         self.output_file = output_file
         self.mutation = mutation
 
-    def check(self, debug=False) -> tuple[bool, str]:
+    def check(self, solver: Solver, debug=False) -> tuple[bool, str]:
         """Check that the metamorphic relation holds."""
+        input_solver = solver
+        output_solver = solver
         # Check if the relation holds and get the relation string
-        input_solver_types = [Solver.GUROBI, Solver.CPLEX]
-        output_solver_types = [Solver.GUROBI, Solver.CPLEX]
-        holds_all = True
-        for input_solver_type, output_solver_type in itertools.product(input_solver_types, output_solver_types):
-            holds, relation_str = self.mutation.metamorphic_relation(
-                self.input_files, self.output_file, input_solver_type, output_solver_type
-            )
+        holds, relation_str = self.mutation.metamorphic_relation(
+            self.input_files, self.output_file, input_solver, output_solver
+        )
 
-            # Print debug information if the relation doesn't hold
-            if not holds and debug:
-                print(self.mutation)
-                print(f"\tinput: {self.input_files}")
-                print(f"\toutput: {self.output_file}")
-                print(f"\trelation: {relation_str}")
-                print(f"\tinput_solver_type: {input_solver_type}")
-                print(f"\toutput_solver_type: {output_solver_type}")
-            
-            holds_all = holds_all and holds
-
+        # Print debug information if the relation doesn't hold
+        if not holds and debug:
+            print(self.mutation)
+            print(f"\tinput: {self.input_files}")
+            print(f"\toutput: {self.output_file}")
+            print(f"\trelation: {relation_str}")
+            print(f"\tinput_solver: {input_solver}")
+            print(f"\toutput_solver_type: {output_solver}")
+        
         return holds, relation_str
 
 
@@ -505,7 +501,7 @@ class Result:
         return Result(result)
     
     @staticmethod
-    def metamorphic_relation(relation: MPSMetamorphicRelation, holds: bool, relation_str: str) -> Result:
+    def metamorphic_relation(relation: MPSMetamorphicRelation, holds: bool, relation_str: str, solver: Solver) -> Result:
         # Record the generated result
         result = {}
         result['type'] = 'metamorphic'
@@ -518,4 +514,5 @@ class Result:
         result['output_file'] = relation.output_file.filename
         result['relation'] = type(relation.mutation).__name__
         result['relation_str'] = relation_str
+        result['solver'] = solver
         return Result(result)

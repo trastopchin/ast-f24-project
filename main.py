@@ -8,6 +8,8 @@ from mps_fuzzer import Result
 import json
 from tqdm import tqdm
 
+from mps_fuzzer import Solver
+
 
 RESULTS_FILEPATH = "./results.txt"
 
@@ -35,7 +37,10 @@ if __name__ == '__main__':
         with open(RESULTS_FILEPATH, 'r') as file:
             for line in file:
                 result = json.loads(line)
-                processed.add((result['file'], result['relation']))
+                if 'solver' in result:
+                    processed.add((result['file'], result['relation'], result['solver']))
+                else:
+                    processed.add((result['file'], result['relation']))
     except FileNotFoundError:
         pass
 
@@ -54,32 +59,28 @@ if __name__ == '__main__':
             append_to_results(str(result))
 
 
-        if (file.filename, "TranslateObjective") not in processed:
-            # Update progress bar description
-            pbar.set_description(f"Processing {file}. Translate objective")
-
-            # Translate Objective
-            translate_objective = TranslateObjective()
-            output_file, relation = translate_objective.mutate([file])
-            
-            # Check that metamorphic relation holds
-            holds, relation_str = relation.check(debug=False)
-            
-            # Log the result
-            result = Result.metamorphic_relation(relation, holds, relation_str)
-            append_to_results(str(result))
+        # Translate Objective
+        translate_objective = TranslateObjective()
+        output_file, relation = translate_objective.mutate([file])
+        for solver in [Solver.GUROBI, Solver.CPLEX]:
+            if (file.filename, "TranslateObjective", solver) not in processed:
+                # Update progress bar description
+                pbar.set_description(f"Processing {file}. Translate objective using {solver}")
+                # Check that metamorphic relation holds
+                holds, relation_str = relation.check(solver=solver, debug=False)
+                # Log the result
+                result = Result.metamorphic_relation(relation, holds, relation_str, solver)
+                append_to_results(str(result))
         
-        if (file.filename, "ScaleObjective") not in processed:
-            # Update progress bar description
-            pbar.set_description(f"Processing {file}. Scale objective")
-
-            # Scale Objective
-            scale_objective = ScaleObjective()
-            output_file, relation = scale_objective.mutate([file])
-            
-            # Check that metamorphic relation holds
-            holds, relation_str = relation.check(debug=False)
-            
-            # Log the result
-            result = Result.metamorphic_relation(relation, holds, relation_str)
-            append_to_results(str(result))
+        # Scale Objective
+        scale_objective = ScaleObjective()
+        output_file, relation = scale_objective.mutate([file])
+        for solver in [Solver.GUROBI, Solver.CPLEX]:
+            if (file.filename, "ScaleObjective", solver) not in processed:
+                # Update progress bar description
+                pbar.set_description(f"Processing {file}. Scale objective using {solver}")
+                # Check that metamorphic relation holds
+                holds, relation_str = relation.check(solver=solver, debug=False)
+                # Log the result
+                result = Result.metamorphic_relation(relation, holds, relation_str, solver)
+                append_to_results(str(result))
