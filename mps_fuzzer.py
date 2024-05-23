@@ -292,6 +292,20 @@ class MPSFile:
         return gurobi_val == cplex_val
 
 
+POSITIVE_STATUSES = ["optimal", "time_limit_feasible"]
+NEGATIVE_STATUSES = ["infeasible", "time_limit_infeasible"]
+def status_cmp(status1: str, status2: str) -> bool:
+    """Compare two solver statuses."""
+    if status1 == status2:
+        return True
+    elif status1 in POSITIVE_STATUSES and status2 in POSITIVE_STATUSES:
+        return True
+    elif status1 in NEGATIVE_STATUSES and status2 in NEGATIVE_STATUSES:
+        return True
+
+    return False
+
+
 class MPSMutation:
     """Represents a mutation of an MPSFile."""
 
@@ -382,8 +396,8 @@ class TranslateObjective(MPSMutation):
         input_obj, input_status = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
         output_obj, output_status = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
         # If both reach the time limit, the relation is "not broken"
-        if input_status == output_status and input_status != "optimal":
-            relation = True
+        if status_cmp(input_status, output_status) and input_status not in POSITIVE_STATUSES:
+            relation = input_status == output_status
             relation_str = f"{input_status} == {output_status}"
         # Otherwise check the relation
         else:
@@ -440,8 +454,8 @@ class ScaleObjective(MPSMutation):
         input_obj, input_status = input_file.obj_val_gurobi() if input_solver_type == Solver.GUROBI else input_file.obj_val_cplex()
         output_obj, output_status = output_file.obj_val_gurobi() if output_solver_type == Solver.GUROBI else output_file.obj_val_cplex()
         # If both reach the time limit, the relation is "not broken"
-        if input_status == output_status and input_status != "optimal":
-            relation = True
+        if status_cmp(input_status, output_status) and input_status not in POSITIVE_STATUSES:
+            relation = input_status == output_status
             relation_str = f"{input_status} == {output_status}"
         # Otherwise check the relation
         else:
@@ -451,16 +465,6 @@ class ScaleObjective(MPSMutation):
         return relation, relation_str
 
 
-def status_cmp(status1: str, status2: str) -> bool:
-    """Compare two solver statuses."""
-    if status1 == status2:
-        return True
-    elif status1 in ["optimal", "time_limit_feasible"] and status2 in ["optimal", "time_limit_feasible"]:
-        return True
-    elif status1 in ["infeasible", "time_limit_infeasible"] and status2 in ["infeasible", "time_limit_infeasible"]:
-        return True
-
-    return False
 
 class Result:
     
