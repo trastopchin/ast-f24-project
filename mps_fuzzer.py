@@ -155,10 +155,8 @@ class MPSFile:
         self.time_limit = time_limit
         with contextlib.redirect_stdout(io.StringIO()):
             self.gurobi_model.Params.TimeLimit = time_limit
-        
-        # TODO: set time limit for CPLEX model as well
-        if self.cplex_model is not None:
-            self.cplex_model.parameters.timelimit.set(time_limit)
+            if self.cplex_model is not None:
+                self.cplex_model.parameters.timelimit.set(time_limit)
 
 
     def over_time_limit(self):
@@ -210,7 +208,7 @@ class MPSFile:
     
     def refresh_cplex_from_gurobi(self):
         """Refresh the CPLEX model from the Gurobi model."""
-        self.cplex_model = cp.Cplex()
+        
 
         # TODO: Maybe compare the approaches
 
@@ -230,12 +228,12 @@ class MPSFile:
 
         # Second approach: copy the Gurobi model to CPLEX by reading and writing to a fake MPS file
         with contextlib.redirect_stdout(io.StringIO()):
+            self.cplex_model = cp.Cplex()
             rand_name = str(random.randint(0, 1000000))
             self.gurobi_model.write(f'temp{rand_name}.mps')
             self.cplex_model.read(f'temp{rand_name}.mps')
             Path(f'temp{rand_name}.mps').unlink()
-
-        self.cplex_model.parameters.timelimit.set(self.time_limit)
+            self.cplex_model.parameters.timelimit.set(self.time_limit)
 
 
 
@@ -351,7 +349,7 @@ class TranslateObjective(MPSMutation):
     def __init__(self, translation=None):
         # TODO: how do we sample objective translations?
         if translation is None:
-            translation = np.random.randint(-1000, 1000)
+            translation = np.random.randint(-10000, 10000)
             # TODO: this breaks the metamorphic relation
             # translation = np.random.randint(-100000, 100000)
         self.translation = translation
