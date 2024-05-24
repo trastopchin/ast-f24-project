@@ -79,7 +79,8 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
         # Add more statuses as needed
     }
 
-    dprint("Status: ", cplex_status_to_string[status])
+    cplex_status_str = cplex_status_to_string[status] if status in cplex_status_to_string else f"Unknown status: {status}"
+    dprint("Status: ", cplex_status_str)
 
     acceptable_cplex_status_strs = [
         "optimal",
@@ -89,9 +90,9 @@ def solve_cplex_model(cpx: cp.Cplex, debug=False) -> float:
 
     return (
         cpx.solution.get_objective_value() 
-        if cplex_status_to_string[status] in acceptable_cplex_status_strs else None
+        if cplex_status_str in acceptable_cplex_status_strs else None
         ,
-        cplex_status_to_string[status]
+        cplex_status_str
     )
 
 class MPSFile:
@@ -246,7 +247,7 @@ class MPSFile:
         dprint("Optimizing Gurobi model")
         self.gurobi_model.update()
         self.gurobi_model.optimize()
-        self._status_gurobi = MPSFile.gurobi_status_to_string[self.gurobi_model.Status]
+        self._status_gurobi = MPSFile.gurobi_status_to_string[self.gurobi_model.Status] if self.gurobi_model.Status in MPSFile.gurobi_status_to_string else f"Unknown status: {self.gurobi_model.Status}"
         # print(self.gurobi_model.SolCount, self._status_gurobi)
         self._obj_val_gurobi = self.gurobi_model.ObjVal if self.gurobi_model.SolCount > 0 else None
 
