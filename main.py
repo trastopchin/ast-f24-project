@@ -28,7 +28,7 @@ if __name__ == '__main__':
     INPUT_SEED_DIR='./input'
     filters = None
     # filters = ['noswot'] # Comment this line to include all files
-    seed_files = MPSFile.read_files(INPUT_SEED_DIR, time_limit=20, filters=filters)
+    seed_files = MPSFile.read_files(INPUT_SEED_DIR, time_limit=120, filters=filters)
     n_seed_files = len([file for file in Path(INPUT_SEED_DIR).iterdir() if file.is_file() and (filters is None or any(f in file.name for f in filters))])
     
     # Read the processed files
