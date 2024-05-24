@@ -19,4 +19,8 @@ the installer and follow the instructions.  In our case, we installed to
 
 4. Install Gurobi. Just run: `pip install gurobipy`
 
-5. Install tqdm. Just run: `pip install tqdm`
+5. Download the  Gurobi (academic) license file. Again, one should get their own
+license from the Gurobi wesbite, and click download to get a `gurobi.lic` file.
+Store it at the root of this project directory (same place as this README file).
+
+6. Install tqdm. Just run: `pip install tqdm`
