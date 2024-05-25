@@ -293,7 +293,7 @@ class MPSFile:
         return gurobi_val == cplex_val
 
 
-POSITIVE_STATUSES = ["optimal", "time_limit_feasible"]
+POSITIVE_STATUSES = ["optimal", "time_limit_feasible", "optimal_tolerance"]
 NEGATIVE_STATUSES = ["infeasible", "time_limit_infeasible"]
 def status_cmp(status1: str, status2: str) -> bool:
     """Compare two solver statuses."""
