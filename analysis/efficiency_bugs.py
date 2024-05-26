@@ -1,8 +1,14 @@
+"""
+Analyse the results and generate insights on Efficiecy and Determination bugs.
+"""
+
 from analysis import create_dataframe
 
 df = create_dataframe()
 
+## CHANGE THE COMMENTED LINE TO ANALYSE DETERMINATION BUGS
 df = df[df.bug == "efficiency"]
+# df = df[df.bug == "determination"]
 
 consistency_bugs = df[df.type == "consistency"].drop(columns=["type", "bug"])
 metamorphic_bugs = df[df.type == "metamorphic"].drop(columns=["type", "bug"])
@@ -17,6 +23,7 @@ gurobi_time_wins = 0
 cplex_time_wins = 0
 gurobi_optimality_against_infeasiblity_wins = 0
 cplex_optimality_against_infeasiblity_wins = 0
+gurobi_infeasibility_against_time_limit_infeasible_wins = 0
 serious_bugs = 0
 both_time_limit_feasible = 0
 for row in consistency_bugs.itertuples():
@@ -45,6 +52,9 @@ for row in consistency_bugs.itertuples():
         "time_limit_feasible"
     ]:
         both_time_limit_feasible += 1
+    elif gurobi_status in ["infeasible"] and cplex_status in ["time_limit_infeasible"]:
+        gurobi_infeasibility_against_time_limit_infeasible_wins += 1
+        print(row)
     else:
         print(gurobi_status, cplex_status)
         print("Needs more cases")
@@ -59,6 +69,10 @@ print(
     gurobi_optimality_against_infeasiblity_wins,
 )
 print("Both time limit feasible:", both_time_limit_feasible)
+print(
+    "Gurobi infeasibility against time limit infeasible wins:",
+    gurobi_infeasibility_against_time_limit_infeasible_wins,
+)
 
 print("METAMORPHIC BUGS")
 # Metamorphic bugs
@@ -79,6 +93,7 @@ for solver in ["gurobi", "cplex"]:
         both_time_limit_feasible = 0
         pre_mutation_optimality_against_infeasibility_wins = 0
         pre_mutation_feasibility_against_infeasibility_wins = 0
+        pre_mutation_infeasibility_against_time_limit_infeasible_wins = 0
 
         mbdf = metamorphic_bugs_gurobi if solver == "gurobi" else metamorphic_bugs_cplex
         for row in mbdf[mbdf.mutation_type == mutation_op].itertuples():
@@ -109,6 +124,10 @@ for solver in ["gurobi", "cplex"]:
                 "time_limit_feasible"
             ] and post_mutation_status in ["time_limit_infeasible"]:
                 pre_mutation_feasibility_against_infeasibility_wins += 1
+            elif pre_mutation_status in ["infeasible"] and post_mutation_status in [
+                "time_limit_infeasible"
+            ]:
+                pre_mutation_infeasibility_against_time_limit_infeasible_wins += 1
             else:
                 print(pre_mutation_status, post_mutation_status)
                 print("Needs more cases")
