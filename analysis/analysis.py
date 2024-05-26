@@ -195,3 +195,12 @@ if __name__ == "__main__":
     # Create the data
     data = create_data(results)
     df = pd.DataFrame(data)
+
+    # Number of bugs
+    print("\nBug type counts (Table 3)\n")
+    print(df["bug"].value_counts(), "\n")
+    print(df["type"].value_counts(), "\n")
+    bug_type_counts = df.groupby(["bug", "type"]).size().reset_index(name="count")
+    print(bug_type_counts, "\n")
+    n_bugs = len(df[~df['bug'].isin(["no", "unclassified"])])
+    print(f"n_bugs: {n_bugs}\n")
