@@ -4,10 +4,22 @@ import numexpr
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
+from typing import Optional
 
+# Statuses
+OPTIMAL_STATUSES = ["optimal", "optimal_tolerance"]
+TIME_LIMIT_FEASIBLE_STATUSES = ["time_limit_feasible"]
+TIME_LIMIT_INFEASIBLE_STATUSES = ["time_limit_infeasible"]
+INFEASIBLE_STATUSES = ["infeasible"]
+
+# Error computable statuses
+ERROR_COMPUTABLE_STATUSES = OPTIMAL_STATUSES + TIME_LIMIT_FEASIBLE_STATUSES
+
+# Error epsilon
 EPSILON = 1e-4
 
 def get_n_input_files(input_dir: str) -> int:
+    """Determine the number of input files."""
     return len([file for file in Path(input_dir).iterdir() if file.is_file()])
 
 def read_results(filepath: str) -> list[dict]:
@@ -29,8 +41,57 @@ def filter_missing(results: list[dict], missing_results: list[dict]) -> list[dic
     ]
     return filtered
 
+def statuses_are_error_computable(status1: str, status2: str) -> bool:
+    """Determine if we can compute the error based on the statuses."""
+    return status1 in ERROR_COMPUTABLE_STATUSES and status2 in ERROR_COMPUTABLE_STATUSES
+    
+
+def statuses_and_value_match_to_bug(status1: str, status2: str, value_match: Optional[bool]) -> str:
+    """Compute the bug based on the statuses and value_match."""
+    
+    # First row of table 2
+    if status1 in OPTIMAL_STATUSES and status2 in OPTIMAL_STATUSES:
+        return "no" if value_match else "correctness"
+    elif status1 in OPTIMAL_STATUSES and status2 in TIME_LIMIT_FEASIBLE_STATUSES:
+        return "determination" if value_match else "efficiency"
+    elif status1 in OPTIMAL_STATUSES and status2 in TIME_LIMIT_INFEASIBLE_STATUSES:
+        return "efficiency"
+    elif status1 in OPTIMAL_STATUSES and status2 in INFEASIBLE_STATUSES:
+        return "correctness"
+    # Second row of table 2
+    elif status1 in TIME_LIMIT_FEASIBLE_STATUSES and status2 in OPTIMAL_STATUSES:
+        return "determination" if value_match else "efficiency"
+    elif status1 in TIME_LIMIT_FEASIBLE_STATUSES and status2 in TIME_LIMIT_FEASIBLE_STATUSES:
+        return "no" if value_match else "efficiency"
+    elif status1 in TIME_LIMIT_FEASIBLE_STATUSES and status2 in TIME_LIMIT_INFEASIBLE_STATUSES:
+        return "efficiency"
+    elif status1 in TIME_LIMIT_FEASIBLE_STATUSES and status2 in INFEASIBLE_STATUSES:
+        return "correctness"
+    # Third row of table 2
+    elif status1 in TIME_LIMIT_INFEASIBLE_STATUSES and status2 in OPTIMAL_STATUSES:
+        return "efficiency"
+    elif status1 in TIME_LIMIT_INFEASIBLE_STATUSES and status2 in TIME_LIMIT_FEASIBLE_STATUSES:
+        return "efficiency"
+    elif status1 in TIME_LIMIT_INFEASIBLE_STATUSES and status2 in TIME_LIMIT_INFEASIBLE_STATUSES:
+        return "no"
+    elif status1 in TIME_LIMIT_INFEASIBLE_STATUSES and status2 in INFEASIBLE_STATUSES:
+        return "determination"
+    # Fourth row of table 2
+    elif status1 in INFEASIBLE_STATUSES and status2 in OPTIMAL_STATUSES:
+        return "correctness"
+    elif status1 in INFEASIBLE_STATUSES and status2 in TIME_LIMIT_FEASIBLE_STATUSES:
+        return "correctness"
+    elif status1 in INFEASIBLE_STATUSES and status2 in TIME_LIMIT_INFEASIBLE_STATUSES:
+        return "determination"
+    elif status1 in INFEASIBLE_STATUSES and status2 in INFEASIBLE_STATUSES:
+        return "no"
+    # Unclassified case
+    else:
+        return "unclassified"
+    
 
 def create_data(results: list[dict]) -> dict:
+    """Transform the results into data that can be used to create a pandas.DataFrame."""
     types = []
     bugs = []
     errors = []
@@ -38,8 +99,58 @@ def create_data(results: list[dict]) -> dict:
     solvers = []
     
     for result in results:
-        if result["type"] == "consistency":
-            pass
+        result_type = result["type"]
+        result_bug = None
+        result_error = None
+        result_file = result["file"]
+        result_solver = None
+        
+        # Consistency results
+        if result_type == "consistency":
+            result_solver = "both"
+            
+            # Compute the error, if possible
+            status_gurobi = result["status_gurobi"]
+            status_cplex = result["status_cplex"]
+            value_match = None
+            
+            if statuses_are_error_computable(status_gurobi, status_cplex):
+                obj_val_gurobi = result["obj_val_gurobi"]
+                obj_val_cplex = result["obj_val_cplex"]
+                result_error = abs(obj_val_gurobi - obj_val_cplex)
+                value_match = result_error > EPSILON
+            
+            # Determine the bug type
+            result_bug = statuses_and_value_match_to_bug(status_gurobi, status_cplex, value_match)
+        
+        # Metamorphic results
+        if result_type == "metamorphic":
+            result_solver = result["solver"]
+            
+            # Parse the relation_str to get the statuses
+            relation_str = result["relation_str"]
+            relation_str_split = relation_str.split(",")
+            status_str = relation_str_split[0] if len(relation_str_split) == 1 else relation_str_split[1]
+            status1, status2 = status_str.split(" == ")
+            
+            # Compute the error, if possible
+            if statuses_are_error_computable(status1, status2):
+                equation_str = relation_str_split[0]
+                lhs_str, rhs_str = equation_str.split(" == ")
+                lhs = numexpr.evaluate(lhs_str)
+                rhs = numexpr.evaluate(rhs_str)
+                result_error = abs(lhs - rhs)
+                value_match = result_error > EPSILON
+                
+            # Determine the bug type
+            result_bug = statuses_and_value_match_to_bug(status1, status2, value_match)
+
+        # Append the type, bug, error, file, and solver
+        types.append(result_type)
+        bugs.append(result_bug)
+        errors.append(result_error)
+        files.append(result_file)
+        solvers.append(result_solver)
     
     # Return data
     data = {
