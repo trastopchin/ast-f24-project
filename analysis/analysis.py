@@ -97,6 +97,8 @@ def create_data(results: list[dict]) -> dict:
     errors = []
     files = []
     solvers = []
+    status1_list = []
+    status2_list = []
     
     for result in results:
         result_type = result["type"]
@@ -104,46 +106,49 @@ def create_data(results: list[dict]) -> dict:
         result_error = None
         result_file = result["file"]
         result_solver = None
+        result_status1 = None
+        result_status2 = None
         
         # Consistency results
         if result_type == "consistency":
             result_solver = "both"
             
             # Compute the error, if possible
-            status_gurobi = result["status_gurobi"]
-            status_cplex = result["status_cplex"]
+            result_status1 = result["status_gurobi"]
+            result_status2 = result["status_cplex"]
             value_match = None
             
-            if statuses_are_error_computable(status_gurobi, status_cplex):
+            if statuses_are_error_computable(result_status1, result_status2):
                 obj_val_gurobi = result["obj_val_gurobi"]
                 obj_val_cplex = result["obj_val_cplex"]
                 result_error = abs(obj_val_gurobi - obj_val_cplex)
-                value_match = result_error > EPSILON
+                value_match = result_error <= EPSILON
             
             # Determine the bug type
-            result_bug = statuses_and_value_match_to_bug(status_gurobi, status_cplex, value_match)
+            result_bug = statuses_and_value_match_to_bug(result_status1, result_status2, value_match)
         
         # Metamorphic results
-        if result_type == "metamorphic":
+        elif result_type == "metamorphic":
             result_solver = result["solver"]
             
             # Parse the relation_str to get the statuses
             relation_str = result["relation_str"]
-            relation_str_split = relation_str.split(",")
+            relation_str_split = relation_str.split(", ")
             status_str = relation_str_split[0] if len(relation_str_split) == 1 else relation_str_split[1]
-            status1, status2 = status_str.split(" == ")
+            result_status1, result_status2 = status_str.split(" == ")
+            value_match = None
             
             # Compute the error, if possible
-            if statuses_are_error_computable(status1, status2):
+            if statuses_are_error_computable(result_status1, result_status2):
                 equation_str = relation_str_split[0]
                 lhs_str, rhs_str = equation_str.split(" == ")
                 lhs = numexpr.evaluate(lhs_str)
                 rhs = numexpr.evaluate(rhs_str)
                 result_error = abs(lhs - rhs)
-                value_match = result_error > EPSILON
+                value_match = result_error <= EPSILON
                 
             # Determine the bug type
-            result_bug = statuses_and_value_match_to_bug(status1, status2, value_match)
+            result_bug = statuses_and_value_match_to_bug(result_status1, result_status2, value_match)
 
         # Append the type, bug, error, file, and solver
         types.append(result_type)
@@ -151,6 +156,9 @@ def create_data(results: list[dict]) -> dict:
         errors.append(result_error)
         files.append(result_file)
         solvers.append(result_solver)
+        status1_list.append(result_status1)
+        status2_list.append(result_status2)
+        
     
     # Return data
     data = {
@@ -158,7 +166,9 @@ def create_data(results: list[dict]) -> dict:
         "bug" : bugs,
         "error" : errors,
         "file" : files,
-        "solver" : solvers
+        "solver" : solvers,
+        "status1" : status1_list,
+        "status2" : status2_list
     }
     return data
 
