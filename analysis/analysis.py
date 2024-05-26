@@ -213,3 +213,18 @@ if __name__ == "__main__":
     plt.savefig("distribution_of_bug_types.pdf", format="pdf")
     # plt.show()
     plt.clf()
+    
+    
+    # Count of bug types stacked bar chart
+    counts = df.groupby(['bug', 'type']).size().unstack()
+    counts = counts.loc[bug_counts.index]
+    counts.plot(kind='bar', stacked=True)
+    plt.title('Number of Metamorphic and Consistency Checks for Each Bug Type')
+    plt.xlabel('Bug Type')
+    plt.ylabel('Count')
+    plt.xticks(rotation=0)  # Rotate x-axis labels for better readability
+    plt.legend(title='Type')
+    # plt.show()
+    plt.savefig("count_of_bug_types.pdf", format="pdf")
+    plt.clf()
+
