@@ -204,3 +204,12 @@ if __name__ == "__main__":
     print(bug_type_counts, "\n")
     n_bugs = len(df[~df['bug'].isin(["no", "unclassified"])])
     print(f"n_bugs: {n_bugs}\n")
+    
+    # Distribution of bug types pie chart
+    bug_counts = df["bug"].value_counts().sort_values()
+    explode = [0.2, 0.1, 0, 0, 0]
+    plt.pie(bug_counts, labels=bug_counts.index, autopct="%1.1f%%", startangle=0, radius=1.2, explode=explode)
+    plt.title('Distribution of Bug Types')
+    plt.savefig("distribution_of_bug_types.pdf", format="pdf")
+    # plt.show()
+    plt.clf()
