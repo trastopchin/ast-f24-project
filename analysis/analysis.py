@@ -159,7 +159,6 @@ def create_data(results: list[dict]) -> dict:
         status1_list.append(result_status1)
         status2_list.append(result_status2)
         
-    
     # Return data
     data = {
         "type" : types,
