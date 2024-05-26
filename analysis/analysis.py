@@ -203,7 +203,7 @@ if __name__ == "__main__":
     bug_type_counts = df.groupby(["bug", "type"]).size().reset_index(name="count")
     print(bug_type_counts, "\n")
     n_bugs = len(df[~df['bug'].isin(["no", "unclassified"])])
-    print(f"n_bugs: {n_bugs}\n")
+    print(f"Total number of bugs: {n_bugs}\n")
     
     # Distribution of bug types pie chart
     bug_counts = df["bug"].value_counts().sort_values()
@@ -214,11 +214,10 @@ if __name__ == "__main__":
     # plt.show()
     plt.clf()
     
-    
     # Count of bug types stacked bar chart
-    counts = df.groupby(['bug', 'type']).size().unstack()
-    counts = counts.loc[bug_counts.index]
-    counts.plot(kind='bar', stacked=True)
+    bug_counts_by_type = df.groupby(['bug', 'type']).size().unstack()
+    bug_counts_by_type = bug_counts_by_type.loc[bug_counts.index]
+    bug_counts_by_type.plot(kind='bar', stacked=True)
     plt.title('Number of Metamorphic and Consistency Checks for Each Bug Type')
     plt.xlabel('Bug Type')
     plt.ylabel('Count')
@@ -227,4 +226,27 @@ if __name__ == "__main__":
     # plt.show()
     plt.savefig("count_of_bug_types.pdf", format="pdf")
     plt.clf()
+    
+    # Visualize the distribution of the correctness errors    
+    correctness_bugs = df[df["bug"] == "correctness"]
+    n_correctness = len(correctness_bugs)
+    print(f"Total correctness bugs: {n_correctness}")
+    correcntess_bugs_optimal_optimal = correctness_bugs[
+        correctness_bugs["status1"].isin(OPTIMAL_STATUSES) &
+        correctness_bugs["status2"].isin(OPTIMAL_STATUSES)
+    ]
+    n_correctness_optimal_optimal = len(correcntess_bugs_optimal_optimal)
+    print(f"Optimal optimal correctness bugs: {n_correctness_optimal_optimal}")
+    
+    errors = correctness_bugs["error"]
+    # Create a log scale histogram
+    plt.hist(errors, bins=[10**i for i in range(-4, 10)], color='skyblue', edgecolor='black')
+    plt.xscale('log')  # Set x-axis to log scale
+    plt.xticks([10**i for i in range(-4, 10)])
+    plt.yticks([i for i in range(10)])
+    plt.title("Distribution of Correctness Bug Errors")
+    plt.xlabel("Correctness Bug Errors (log scale)")
+    plt.ylabel("Frequency")
+    # plt.show()
+    plt.savefig("distribution_of_correctness_bug_errors.pdf", format="pdf")
 
