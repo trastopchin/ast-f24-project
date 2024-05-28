@@ -293,7 +293,7 @@ if __name__ == "__main__":
     n_correctness_optimal_optimal = len(correcntess_bugs_optimal_optimal)
     print(f"Optimal optimal correctness bugs: {n_correctness_optimal_optimal}")
 
-    errors = correctness_bugs["error"]
+    errors = [abs(error) for error in correctness_bugs["error"]]
     # Create a log scale histogram
     plt.hist(
         errors, bins=[10**i for i in range(-4, 10)], color="skyblue", edgecolor="black"
